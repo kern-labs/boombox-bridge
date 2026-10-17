@@ -67,7 +67,7 @@ label.chk input{width:auto}
   <div class="dlg">
     <div class="head" style="margin:0"><h2 id="dlgTitle">Sender wählen</h2><button id="closeBtn">Schliessen</button></div>
     <input id="q" placeholder="Sendername, z. B. SRF 3" autocomplete="off">
-    <label class="chk"><input type="checkbox" id="ch" checked> Nur Schweizer Sender</label>
+    <label class="chk"><input type="checkbox" id="ch" checked> <span id="chLabel">Nur Sender aus meinem Land</span></label>
     <details>
       <summary class="muted">Eigene Stream-Adresse eingeben</summary>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
@@ -84,6 +84,8 @@ label.chk input{width:auto}
 <script>
 const RB = ["de1.api.radio-browser.info","de2.api.radio-browser.info","fi1.api.radio-browser.info","nl1.api.radio-browser.info"];
 let speakers = [], target = null;
+// Land aus der Browser-Sprache (z. B. "de-CH" -> "CH"), sonst CH
+const REGION = ((navigator.languages || [navigator.language]).map(l => (l.split("-")[1] || "")).find(r => /^[A-Za-z]{2}$/.test(r)) || "CH").toUpperCase();
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
@@ -182,7 +184,7 @@ async function search() {
   const q = $("#q").value.trim();
   if (q.length < 2) { $("#results").innerHTML = ""; return; }
   const params = new URLSearchParams({name:q, hidebroken:"true", order:"clickcount", reverse:"true", limit:"40"});
-  if ($("#ch").checked) params.set("countrycode", "CH");
+  if ($("#ch").checked) params.set("countrycode", REGION);
   $("#results").innerHTML = `<p class="muted">Suche…</p>`;
   for (const host of RB) {
     try {
@@ -215,6 +217,7 @@ $("#addBtn").onclick = async () => {
   catch(e) { toast(e.message); }
 };
 
+try { $("#chLabel").textContent = "Nur Sender aus meinem Land (" + (new Intl.DisplayNames(["de"], {type: "region"}).of(REGION) || REGION) + ")"; } catch (e) {}
 load();
 setInterval(() => { if (!$("#dlg").open) load(); }, 10000);
 </script>
