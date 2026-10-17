@@ -1,0 +1,19 @@
+services:
+  boombox-bridge:
+    image: ghcr.io/kern-labs/boombox-bridge:latest
+    # Selbst bauen statt fertiges Image laden: obige Zeile durch "build: ." ersetzen
+    container_name: boombox-bridge
+    # "host" ist nötig, damit die Bridge Lautsprecher per Bonjour findet
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - BRIDGE_PORT=8765
+      - TZ=Europe/Zurich
+      # Optional: feste IP-Adressen, falls die automatische Suche nichts findet
+      # - SPEAKERS=192.168.1.50,192.168.1.51
+      # Nach Aus/Ein den letzten Sender weiterspielen (on/off)
+      - AUTO_RESUME=on
+      # Für die Fehlersuche auf DEBUG stellen
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./data:/data

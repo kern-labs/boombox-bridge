@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boom Box Bridge</title>
+<style>
+:root{--bg:#fffaf4;--fg:#2a1f29;--muted:#6b5f69;--accent:#d81c23;--card:#fff;--line:#efe2d6;--ok:#2f9e5b;--bad:#c8372d}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1519;--fg:#f6ece4;--muted:#b9aab3;--accent:#ff4a4a;--card:#251d22;--line:#3a2e35;--ok:#4cc27c;--bad:#ff6b5e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:24px 16px 64px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+header img{width:44px;height:44px;border-radius:10px}
+h1{font-size:1.4rem;margin:0}
+h2{font-size:1.1rem;margin:0}
+.muted{color:var(--muted);font-size:.9rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--bad)}
+.dot.on{background:var(--ok)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media (max-width:520px){.grid{grid-template-columns:repeat(2,1fr)}}
+.slot{border:1px solid var(--line);border-radius:12px;padding:10px;min-height:96px;display:flex;flex-direction:column;gap:6px}
+.slot .n{font-weight:700;font-size:1.2rem}
+.slot .name{font-size:.9rem;word-break:break-word;flex:1}
+.slot.empty .name{color:var(--muted)}
+.slot .actions{display:flex;gap:6px;flex-wrap:wrap}
+button{font:inherit;font-size:.85rem;border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:999px;padding:5px 11px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+input{font:inherit;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.row{display:flex;gap:8px}
+dialog{border:none;border-radius:16px;padding:0;width:min(560px,calc(100vw - 32px));max-height:80vh;background:var(--card);color:var(--fg)}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+.dlg{padding:16px;display:flex;flex-direction:column;gap:10px;max-height:80vh}
+.results{overflow:auto;display:flex;flex-direction:column;gap:4px}
+.res{display:flex;gap:10px;align-items:center;padding:8px;border-radius:10px;cursor:pointer;border:none;text-align:left;width:100%}
+.res:hover{background:var(--bg)}
+.res img{width:32px;height:32px;border-radius:6px;object-fit:contain;background:var(--bg)}
+label.chk{display:flex;gap:8px;align-items:center;font-size:.9rem}
+label.chk input{width:auto}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:.9rem;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <img src="/static/icon.png" alt="">
+  <div><h1>Boom Box Bridge</h1><div class="muted" id="ver"></div></div>
+</header>
+
+<div id="list"><p class="muted">Lade…</p></div>
+
+<div class="card">
+  <div class="head"><h2>Lautsprecher per IP hinzufügen</h2></div>
+  <p class="muted">Nur nötig, wenn ein Lautsprecher nicht automatisch erscheint.</p>
+  <div class="row">
+    <input id="ip" placeholder="z. B. 192.168.1.50" inputmode="decimal">
+    <button class="primary" id="addBtn">Hinzufügen</button>
+  </div>
+</div>
+</main>
+
+<dialog id="dlg">
+  <div class="dlg">
+    <div class="head" style="margin:0"><h2 id="dlgTitle">Sender wählen</h2><button id="closeBtn">Schliessen</button></div>
+    <input id="q" placeholder="Sendername, z. B. SRF 3" autocomplete="off">
+    <label class="chk"><input type="checkbox" id="ch" checked> Nur Schweizer Sender</label>
+    <details>
+      <summary class="muted">Eigene Stream-Adresse eingeben</summary>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+        <input id="cName" placeholder="Name">
+        <input id="cUrl" placeholder="http://…">
+        <button id="cSave">Übernehmen</button>
+      </div>
+    </details>
+    <div class="results" id="results"></div>
+  </div>
+</dialog>
+<div id="toast"></div>
+
+<script>
+const RB = ["de1.api.radio-browser.info","de2.api.radio-browser.info","fi1.api.radio-browser.info","nl1.api.radio-browser.info"];
+let speakers = [], target = null;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function toast(t){ const el=$("#toast"); el.textContent=t; el.classList.add("show"); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("show"),2500); }
+
+async function api(path, opts={}) {
+  const r = await fetch(path, {headers:{"Content-Type":"application/json"}, ...opts});
+  const data = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error(data.error || ("HTTP "+r.status));
+  return data;
+}
+
+async function load() {
+  try {
+    const st = await api("/api/status");
+    $("#ver").textContent = "Version " + st.version;
+    speakers = await api("/api/speakers");
+    render();
+  } catch(e) { $("#list").innerHTML = `<p class="muted">Bridge nicht erreichbar: ${esc(e.message)}</p>`; }
+}
+
+function render() {
+  if (!speakers.length) {
+    $("#list").innerHTML = `<div class="card"><h2>Noch keine Lautsprecher gefunden</h2>
+      <p class="muted">Die Suche läuft im Hintergrund. Sind die Lautsprecher eingeschaltet und im selben Netz wie die Synology? Sonst unten per IP hinzufügen.</p></div>`;
+    return;
+  }
+  $("#list").innerHTML = speakers.map((sp, si) => `
+    <div class="card">
+      <div class="head">
+        <div><h2>${esc(sp.name)}</h2>
+          <div class="muted"><span class="dot ${sp.connected?"on":""}"></span>${sp.connected?"Verbunden":"Nicht verbunden"} · ${esc(sp.model)} · ${esc(sp.host)}</div>
+          ${sp.lastError?`<div class="muted">Letzter Fehler: ${esc(sp.lastError)}</div>`:""}
+        </div>
+      </div>
+      <div class="grid">
+        ${sp.presets.map((p, i) => `
+          <div class="slot ${p?"":"empty"}">
+            <div class="n">${i+1}</div>
+            <div class="name">${p?esc(p.name):"Leer"}</div>
+            <div class="actions">
+              <button data-act="edit" data-s="${si}" data-i="${i}">${p?"Ändern":"Belegen"}</button>
+              ${p?`<button data-act="play" data-s="${si}" data-i="${i}">▶</button>
+                   <button data-act="clear" data-s="${si}" data-i="${i}" aria-label="Leeren">✕</button>`:""}
+            </div>
+          </div>`).join("")}
+      </div>
+    </div>`).join("");
+}
+
+$("#list").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const sp = speakers[+b.dataset.s], i = +b.dataset.i;
+  if (b.dataset.act === "edit") openSearch(sp, i);
+  if (b.dataset.act === "clear") { sp.presets[i] = null; await save(sp); }
+  if (b.dataset.act === "play") {
+    b.disabled = true;
+    try { await api(`/api/play/${encodeURIComponent(sp.deviceId)}`, {method:"POST", body:JSON.stringify({slot:i+1})}); toast("Spielt: "+sp.presets[i].name); }
+    catch(err) { toast("Fehler: "+err.message); }
+    b.disabled = false;
+  }
+});
+
+async function save(sp) {
+  try {
+    sp.presets = await api(`/api/presets/${encodeURIComponent(sp.deviceId)}`, {method:"PUT", body:JSON.stringify({presets:sp.presets})});
+    render(); toast("Gespeichert");
+  } catch(e) { toast("Fehler: "+e.message); }
+}
+
+function openSearch(sp, i) {
+  target = {sp, i};
+  $("#dlgTitle").textContent = `${sp.name} · Taste ${i+1}`;
+  $("#q").value = ""; $("#results").innerHTML = ""; $("#cName").value = ""; $("#cUrl").value = "";
+  $("#dlg").showModal(); $("#q").focus();
+}
+$("#closeBtn").onclick = () => $("#dlg").close();
+
+async function choose(station) {
+  target.sp.presets[target.i] = station;
+  $("#dlg").close();
+  await save(target.sp);
+}
+
+$("#cSave").onclick = () => {
+  const name = $("#cName").value.trim(), url = $("#cUrl").value.trim();
+  if (!name || !/^https?:\/\//i.test(url)) { toast("Name und http(s)-Adresse angeben"); return; }
+  choose({name, url, codec:"", logo:""});
+};
+
+let timer;
+$("#q").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(search, 400); });
+$("#ch").addEventListener("change", search);
+
+async function search() {
+  const q = $("#q").value.trim();
+  if (q.length < 2) { $("#results").innerHTML = ""; return; }
+  const params = new URLSearchParams({name:q, hidebroken:"true", order:"clickcount", reverse:"true", limit:"40"});
+  if ($("#ch").checked) params.set("countrycode", "CH");
+  $("#results").innerHTML = `<p class="muted">Suche…</p>`;
+  for (const host of RB) {
+    try {
+      const r = await fetch(`https://${host}/json/stations/search?${params}`);
+      if (!r.ok) continue;
+      const list = (await r.json()).filter(s => /mp3|aac/i.test(s.codec || "mp3"));
+      showResults(list); return;
+    } catch(e) {}
+  }
+  $("#results").innerHTML = `<p class="muted">Sendersuche nicht erreichbar.</p>`;
+}
+
+function showResults(list) {
+  if (!list.length) { $("#results").innerHTML = `<p class="muted">Keine Sender gefunden.</p>`; return; }
+  $("#results").innerHTML = list.map((s, k) => `
+    <button class="res" data-k="${k}">
+      <img src="${esc(s.favicon||"")}" alt="" onerror="this.style.visibility='hidden'">
+      <div><div>${esc(s.name.trim())}</div><div class="muted">${esc([s.countrycode, s.codec, s.bitrate?s.bitrate+" kbit/s":""].filter(Boolean).join(" · "))}</div></div>
+    </button>`).join("");
+  $("#results").onclick = e => {
+    const b = e.target.closest(".res"); if (!b) return;
+    const s = list[+b.dataset.k];
+    choose({name:s.name.trim(), url:s.url_resolved||s.url, codec:s.codec||"", logo:s.favicon||""});
+  };
+}
+
+$("#addBtn").onclick = async () => {
+  const host = $("#ip").value.trim(); if (!host) return;
+  try { await api("/api/speakers", {method:"POST", body:JSON.stringify({host})}); $("#ip").value=""; toast("Hinzugefügt"); load(); }
+  catch(e) { toast(e.message); }
+};
+
+load();
+setInterval(() => { if (!$("#dlg").open) load(); }, 10000);
+</script>
+</body>
+</html>
