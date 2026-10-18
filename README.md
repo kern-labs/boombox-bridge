@@ -152,8 +152,10 @@ Die Einstellungen stehen oben in der englischen Tabelle und als Kommentare in de
 
 ## Credits / Danke
 
-Boom Box Bridge contains no code from other projects, but it builds on what the
-SoundTouch community found out after the cloud shutdown in 2026. Thank you!
+B## Credits / Danke
+
+Boom Box Bridge contains no code from other projects, but it builds on what these
+projects found out after the SoundTouch cloud shutdown in 2026. Thank you!
 Die Bridge enthält keinen fremden Code, baut aber auf den Erkenntnissen dieser
 Projekte auf. Danke!
 
@@ -161,16 +163,6 @@ Projekte auf. Danke!
   – preset buttons via the speaker's local WebSocket and UPnP playback
 - [nsabba/bose-preset-bridge](https://github.com/nsabba/bose-preset-bridge)
   – the `nowSelectionUpdated` event and the AVTransport control URL
-- [codingmammoth/SoundTouchBridge](https://github.com/codingmammoth/SoundTouchBridge)
-  – the same approach on Homey, including its pitfalls
-- [Dress13/homebridge-bose-soundtouch](https://github.com/Dress13/homebridge-bose-soundtouch)
-  – radio via DLNA/UPnP after the shutdown
-- [cxvisa/CxSoundTouch](https://github.com/cxvisa/CxSoundTouch)
-  – why DIDL-Lite metadata is required for the speaker to accept a stream
-- [gesellix/bose-soundtouch](https://github.com/gesellix/bose-soundtouch) (AfterTouch)
-  – extensive documentation of the SoundTouch local API
-- [radio-browser.info](https://www.radio-browser.info) – the free, community-run station directory
-
 ---
 
 ## License / Lizenz
